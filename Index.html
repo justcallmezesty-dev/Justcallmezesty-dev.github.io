@@ -788,35 +788,23 @@
       }
 
       /* -------------------------------------------------------------
-         Painterly brush cursor trail (global overlay canvas)
-         ------------------------------------------------------------- */
-      #brush-trail {
-        position: fixed;
-        inset: 0;
-        pointer-events: none;
-        z-index: 2;
-        mix-blend-mode: screen;
-        opacity: 0.85;
-      }
-
-      @media (hover: none) {
-        #brush-trail { display: none; }
-      }
-
-      /* -------------------------------------------------------------
          3D specimen plate — hero painterly shader viewer
          ------------------------------------------------------------- */
       .specimen {
         position: relative;
-        margin: 0 0 48px;
+        margin: 0 0 56px;
         border: 1px solid var(--border);
         border-radius: var(--radius);
         overflow: hidden;
         background:
-          radial-gradient(ellipse at 30% 20%, rgba(217, 165, 102, 0.06), transparent 60%),
-          linear-gradient(180deg, var(--canvas-2), var(--canvas));
-        aspect-ratio: 16 / 10;
+          radial-gradient(ellipse at 30% 20%, rgba(217, 165, 102, 0.08), transparent 60%),
+          radial-gradient(ellipse at 70% 80%, rgba(201, 106, 63, 0.06), transparent 55%),
+          linear-gradient(180deg, #1a1713, #0e0c09);
+        min-height: clamp(440px, 68vh, 760px);
+        width: 100%;
         cursor: grab;
+        touch-action: none;
+        box-shadow: 0 40px 80px -30px rgba(0, 0, 0, 0.6);
       }
 
       .specimen:active { cursor: grabbing; }
@@ -1238,14 +1226,12 @@
         .step-number::after { transform: scaleX(0); }
         .ornament svg path { stroke-dashoffset: 0; }
         .ornament svg circle { opacity: 1; }
-        #brush-trail { display: none; }
         .specimen-label::before { animation: none; }
       }
     </style>
   </head>
   <body>
     <div class="progress" id="progress" aria-hidden="true"></div>
-    <canvas id="brush-trail" aria-hidden="true"></canvas>
 
     <div class="shell">
       <div class="layout">
@@ -1892,7 +1878,7 @@
         ).matches;
 
         const targets = document.querySelectorAll(
-          "section.step, .card, .ornament, .callout, .specimen, .brush-viz, .hull-demo, [data-reveal]"
+          "section.step, .card, .ornament, .callout, .brush-viz, .hull-demo, [data-reveal]"
         );
 
         targets.forEach((el) => el.classList.add("reveal"));
@@ -1949,97 +1935,6 @@
           card.addEventListener("pointermove", onMove);
           card.addEventListener("pointerleave", onLeave);
         });
-      })();
-
-      // -------------------------------------------------------------
-      // Painterly brush-cursor trail
-      // -------------------------------------------------------------
-      (function () {
-        const prefersReduced = window.matchMedia(
-          "(prefers-reduced-motion: reduce)"
-        ).matches;
-        if (prefersReduced) return;
-        if (matchMedia("(hover: none)").matches) return;
-
-        const canvas = document.getElementById("brush-trail");
-        if (!canvas) return;
-        const ctx = canvas.getContext("2d");
-
-        let w = 0, h = 0, dpr = Math.min(window.devicePixelRatio || 1, 2);
-        function resize() {
-          w = canvas.width = Math.floor(window.innerWidth * dpr);
-          h = canvas.height = Math.floor(window.innerHeight * dpr);
-          canvas.style.width = window.innerWidth + "px";
-          canvas.style.height = window.innerHeight + "px";
-        }
-        resize();
-        window.addEventListener("resize", resize);
-
-        const dabs = [];
-        const MAX = 120;
-        let lastX = null, lastY = null, lastT = 0;
-
-        const palette = [
-          [201, 106, 63],   // sienna
-          [217, 165, 102],  // ochre
-          [236, 228, 211],  // paper
-        ];
-
-        window.addEventListener("pointermove", (e) => {
-          const x = e.clientX * dpr;
-          const y = e.clientY * dpr;
-          const t = performance.now();
-          if (lastX !== null) {
-            const dx = x - lastX, dy = y - lastY;
-            const dist = Math.hypot(dx, dy);
-            const steps = Math.min(8, Math.max(1, Math.floor(dist / (6 * dpr))));
-            for (let i = 0; i < steps; i++) {
-              const k = (i + 1) / steps;
-              const px = lastX + dx * k;
-              const py = lastY + dy * k;
-              dabs.push({
-                x: px,
-                y: py,
-                r: (8 + Math.random() * 10) * dpr,
-                a: 0.18 + Math.random() * 0.12,
-                c: palette[Math.floor(Math.random() * palette.length)],
-                rot: Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.4,
-                life: 1,
-              });
-              if (dabs.length > MAX) dabs.shift();
-            }
-          }
-          lastX = x; lastY = y; lastT = t;
-        }, { passive: true });
-
-        function render() {
-          // fade
-          ctx.globalCompositeOperation = "destination-out";
-          ctx.fillStyle = "rgba(0,0,0,0.06)";
-          ctx.fillRect(0, 0, w, h);
-
-          ctx.globalCompositeOperation = "lighter";
-          for (let i = dabs.length - 1; i >= 0; i--) {
-            const d = dabs[i];
-            d.life -= 0.018;
-            if (d.life <= 0) { dabs.splice(i, 1); continue; }
-            const alpha = d.a * d.life;
-            ctx.save();
-            ctx.translate(d.x, d.y);
-            ctx.rotate(d.rot);
-            const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, d.r);
-            grad.addColorStop(0, `rgba(${d.c[0]},${d.c[1]},${d.c[2]},${alpha})`);
-            grad.addColorStop(0.6, `rgba(${d.c[0]},${d.c[1]},${d.c[2]},${alpha * 0.35})`);
-            grad.addColorStop(1, `rgba(${d.c[0]},${d.c[1]},${d.c[2]},0)`);
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.ellipse(0, 0, d.r * 1.7, d.r * 0.6, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.restore();
-          }
-          requestAnimationFrame(render);
-        }
-        requestAnimationFrame(render);
       })();
 
       // -------------------------------------------------------------
@@ -2166,198 +2061,194 @@
       ).matches;
 
       // =============================================================
-      // Painterly Hero Shader
+      // Painterly Hero Shader — big, robust showcase
       // =============================================================
       (function heroScene() {
         const container = document.getElementById("hero-specimen");
         const canvas = document.getElementById("hero-canvas");
-        if (!container || !canvas) return;
+        if (!container || !canvas) {
+          console.log("[v0] hero scene: container/canvas missing");
+          return;
+        }
 
-        const renderer = new THREE.WebGLRenderer({
-          canvas,
-          antialias: true,
-          alpha: true,
-          powerPreference: "high-performance",
-        });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        let renderer;
+        try {
+          renderer = new THREE.WebGLRenderer({
+            canvas,
+            antialias: true,
+            alpha: true,
+          });
+        } catch (err) {
+          console.log("[v0] hero scene: WebGL not available", err);
+          return;
+        }
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
         renderer.setClearColor(0x000000, 0);
 
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
-        camera.position.set(0, 0, 4.2);
+        const camera = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+        camera.position.set(0, 0, 5.2);
 
-        // Soft key + rim lights (data passed via uniforms for custom shader)
-        const lightDir = new THREE.Vector3(0.6, 0.7, 0.5).normalize();
-        const rimDir = new THREE.Vector3(-0.8, 0.3, -0.4).normalize();
+        // Soft key light (single direction used by custom shader)
+        const keyLight = new THREE.Vector3(0.55, 0.85, 0.7).normalize();
+        const rimLight = new THREE.Vector3(-0.9, 0.15, -0.2).normalize();
 
-        const geometry = new THREE.IcosahedronGeometry(1.3, 64);
+        // Bigger sphere for a bold showcase
+        const geometry = new THREE.IcosahedronGeometry(1.7, 48);
 
         const uniforms = {
-          uTime: { value: 0 },
-          uLightDir: { value: lightDir },
-          uRimDir: { value: rimDir },
-          uCanvas: { value: new THREE.Color("#12110f") },
-          uCanvas2: { value: new THREE.Color("#22201b") },
-          uPaper: { value: new THREE.Color("#ece4d3") },
+          uTime:     { value: 0 },
+          uLightDir: { value: keyLight },
+          uRimDir:   { value: rimLight },
+          uShadow:   { value: new THREE.Color("#1a140e") },
+          uMid:      { value: new THREE.Color("#6b3420") },
+          uSienna:   { value: new THREE.Color("#c96a3f") },
+          uOchre:    { value: new THREE.Color("#e0ad6a") },
+          uHigh:     { value: new THREE.Color("#f4e9cf") },
           uPaperDim: { value: new THREE.Color("#bcb4a3") },
-          uSienna: { value: new THREE.Color("#c96a3f") },
-          uOchre: { value: new THREE.Color("#d9a566") },
-          uMode: { value: 0 }, // 0 painterly, 1 flat, 2 rim
-          uPointer: { value: new THREE.Vector2(0, 0) },
+          uMode:     { value: 0 }, // 0 painterly, 1 flat, 2 rim
         };
 
         const vertex = /* glsl */ `
-          varying vec3 vNormal;
-          varying vec3 vWorldNormal;
-          varying vec3 vViewDir;
-          varying vec3 vPos;
-          varying vec2 vUv;
+          varying vec3 vN;
+          varying vec3 vV;
+          varying vec3 vP;
+          varying vec3 vOP;
           uniform float uTime;
 
-          // classic 3D simplex-lite (value noise blend)
+          // hash / value noise
           float hash(vec3 p){ return fract(sin(dot(p, vec3(127.1,311.7,74.7))) * 43758.5453); }
           float vnoise(vec3 p){
             vec3 i = floor(p), f = fract(p);
             f = f*f*(3.0 - 2.0*f);
-            float n000=hash(i), n100=hash(i+vec3(1,0,0));
-            float n010=hash(i+vec3(0,1,0)), n110=hash(i+vec3(1,1,0));
-            float n001=hash(i+vec3(0,0,1)), n101=hash(i+vec3(1,0,1));
-            float n011=hash(i+vec3(0,1,1)), n111=hash(i+vec3(1,1,1));
-            float nx00 = mix(n000,n100,f.x);
-            float nx10 = mix(n010,n110,f.x);
-            float nx01 = mix(n001,n101,f.x);
-            float nx11 = mix(n011,n111,f.x);
-            float nxy0 = mix(nx00,nx10,f.y);
-            float nxy1 = mix(nx01,nx11,f.y);
-            return mix(nxy0,nxy1,f.z);
+            float a=hash(i);
+            float b=hash(i+vec3(1.0,0.0,0.0));
+            float c=hash(i+vec3(0.0,1.0,0.0));
+            float d=hash(i+vec3(1.0,1.0,0.0));
+            float e=hash(i+vec3(0.0,0.0,1.0));
+            float g=hash(i+vec3(1.0,0.0,1.0));
+            float h=hash(i+vec3(0.0,1.0,1.0));
+            float k=hash(i+vec3(1.0,1.0,1.0));
+            return mix(
+              mix(mix(a,b,f.x), mix(c,d,f.x), f.y),
+              mix(mix(e,g,f.x), mix(h,k,f.x), f.y),
+              f.z
+            );
           }
 
           void main() {
-            vUv = uv;
             vec3 pos = position;
-            // subtle wet-paint wobble
-            float w = vnoise(position * 1.8 + uTime * 0.12);
-            pos += normal * (w - 0.5) * 0.03;
+            // gentle wet-paint wobble, based on object-space position
+            float w = vnoise(position * 2.2 + uTime * 0.2);
+            pos += normal * (w - 0.5) * 0.035;
 
-            vec4 worldPos = modelMatrix * vec4(pos, 1.0);
-            vWorldNormal = normalize(mat3(modelMatrix) * normal);
-            vNormal = normalize(normalMatrix * normal);
-            vPos = worldPos.xyz;
-            vViewDir = normalize(cameraPosition - worldPos.xyz);
-
-            gl_Position = projectionMatrix * viewMatrix * worldPos;
+            vec4 wp = modelMatrix * vec4(pos, 1.0);
+            vN  = normalize(mat3(modelMatrix) * normal);
+            vP  = wp.xyz;
+            vOP = position;
+            vV  = normalize(cameraPosition - wp.xyz);
+            gl_Position = projectionMatrix * viewMatrix * wp;
           }
         `;
 
         const fragment = /* glsl */ `
           precision highp float;
-          varying vec3 vNormal;
-          varying vec3 vWorldNormal;
-          varying vec3 vViewDir;
-          varying vec3 vPos;
-          varying vec2 vUv;
+          varying vec3 vN;
+          varying vec3 vV;
+          varying vec3 vP;
+          varying vec3 vOP;
 
           uniform float uTime;
-          uniform vec3 uLightDir;
-          uniform vec3 uRimDir;
-          uniform vec3 uCanvas;
-          uniform vec3 uCanvas2;
-          uniform vec3 uPaper;
-          uniform vec3 uPaperDim;
-          uniform vec3 uSienna;
-          uniform vec3 uOchre;
-          uniform int  uMode;
-          uniform vec2 uPointer;
+          uniform vec3  uLightDir;
+          uniform vec3  uRimDir;
+          uniform vec3  uShadow;
+          uniform vec3  uMid;
+          uniform vec3  uSienna;
+          uniform vec3  uOchre;
+          uniform vec3  uHigh;
+          uniform vec3  uPaperDim;
+          uniform int   uMode;
 
           float hash(vec3 p){ return fract(sin(dot(p, vec3(127.1,311.7,74.7))) * 43758.5453); }
           float vnoise(vec3 p){
             vec3 i = floor(p), f = fract(p);
             f = f*f*(3.0 - 2.0*f);
-            float n000=hash(i), n100=hash(i+vec3(1,0,0));
-            float n010=hash(i+vec3(0,1,0)), n110=hash(i+vec3(1,1,0));
-            float n001=hash(i+vec3(0,0,1)), n101=hash(i+vec3(1,0,1));
-            float n011=hash(i+vec3(0,1,1)), n111=hash(i+vec3(1,1,1));
-            float nx00 = mix(n000,n100,f.x);
-            float nx10 = mix(n010,n110,f.x);
-            float nx01 = mix(n001,n101,f.x);
-            float nx11 = mix(n011,n111,f.x);
-            float nxy0 = mix(nx00,nx10,f.y);
-            float nxy1 = mix(nx01,nx11,f.y);
-            return mix(nxy0,nxy1,f.z);
+            float a=hash(i);
+            float b=hash(i+vec3(1.0,0.0,0.0));
+            float c=hash(i+vec3(0.0,1.0,0.0));
+            float d=hash(i+vec3(1.0,1.0,0.0));
+            float e=hash(i+vec3(0.0,0.0,1.0));
+            float g=hash(i+vec3(1.0,0.0,1.0));
+            float h=hash(i+vec3(0.0,1.0,1.0));
+            float k=hash(i+vec3(1.0,1.0,1.0));
+            return mix(
+              mix(mix(a,b,f.x), mix(c,d,f.x), f.y),
+              mix(mix(e,g,f.x), mix(h,k,f.x), f.y),
+              f.z
+            );
           }
           float fbm(vec3 p){
             float v = 0.0, a = 0.5;
-            for (int i=0;i<5;i++){ v += a*vnoise(p); p *= 2.02; a *= 0.5; }
+            for (int i = 0; i < 5; i++) { v += a * vnoise(p); p *= 2.03; a *= 0.5; }
             return v;
           }
 
+          vec3 ramp(float t) {
+            // 4-stop painterly palette
+            if (t < 0.33)      return mix(uShadow, uMid,    t / 0.33);
+            else if (t < 0.60) return mix(uMid,    uSienna, (t - 0.33) / 0.27);
+            else if (t < 0.82) return mix(uSienna, uOchre,  (t - 0.60) / 0.22);
+            else               return mix(uOchre,  uHigh,   (t - 0.82) / 0.18);
+          }
+
           void main() {
-            vec3 N = normalize(vWorldNormal);
-            vec3 V = normalize(vViewDir);
+            vec3 N = normalize(vN);
+            vec3 V = normalize(vV);
             vec3 L = normalize(uLightDir);
             vec3 R = normalize(uRimDir);
 
-            // stroke flow — sample fbm with a swirled coordinate
-            vec3 flowP = vPos * 1.6 + vec3(uTime * 0.05, 0.0, -uTime * 0.03);
-            float flow = fbm(flowP);
-            vec3 strokeP = vPos * 3.0 + N * 0.4 + vec3(flow * 0.8);
-
-            // base tonal value driven by lambert + fbm
+            // diffuse half-lambert
             float nl = clamp(dot(N, L) * 0.5 + 0.5, 0.0, 1.0);
-            float paint = fbm(strokeP);
-            float tone = clamp(nl * 0.85 + paint * 0.25 - 0.05, 0.0, 1.0);
 
-            // quantize into painterly bands (K-means-esque)
+            // painterly noise perturbation in object space so it moves with the mesh
+            vec3 flowP = vOP * 2.2 + vec3(uTime * 0.08, uTime * -0.05, 0.0);
+            float paint = fbm(flowP);
+            float tone  = clamp(nl * 0.9 + (paint - 0.5) * 0.35, 0.0, 1.0);
+
+            // Quantize into painterly bands
             float bands = 5.0;
-            float q = floor(tone * bands) / bands;
-            // soften the edges of bands slightly
-            float nextQ = q + 1.0 / bands;
-            float edge = smoothstep(q + 0.02, nextQ - 0.02, tone);
-            float t = mix(q, nextQ, edge * 0.55);
+            float band = floor(tone * bands) / bands;
+            float next = band + 1.0 / bands;
+            float edge = smoothstep(band + 0.015, next - 0.015, tone);
+            float t    = mix(band, next, edge * 0.55);
 
-            // paint palette ramp: canvas -> canvas2 -> sienna -> ochre -> paper
-            vec3 c;
-            if (t < 0.25)      c = mix(uCanvas,   uCanvas2, t / 0.25);
-            else if (t < 0.5)  c = mix(uCanvas2,  uSienna,  (t - 0.25) / 0.25);
-            else if (t < 0.75) c = mix(uSienna,   uOchre,   (t - 0.5) / 0.25);
-            else               c = mix(uOchre,    uPaper,   (t - 0.75) / 0.25);
+            vec3 col = ramp(t);
 
-            // impasto — darken in high-freq pits, lighten on ridges
-            float high = fbm(vPos * 18.0);
-            c *= 0.88 + high * 0.28;
+            // Impasto-like variation along object-space high frequency
+            float high = fbm(vOP * 22.0);
+            col *= 0.86 + high * 0.28;
 
-            // dab streaks along flow
-            float streak = fbm(vec3(vPos.xy * 26.0 + flow * 2.0, vPos.z * 4.0));
-            c += (streak - 0.5) * 0.08 * uPaper;
+            // Streaky dabs
+            float streak = fbm(vec3(vOP.xy * 28.0 + paint * 2.5, vOP.z * 6.0));
+            col += (streak - 0.5) * 0.09 * uHigh;
 
-            // rim — ochre edge wear
+            // Fresnel rim — warm ochre edge wear
             float fres = 1.0 - max(dot(N, V), 0.0);
-            float rim = pow(fres, 2.6);
-            c = mix(c, uOchre, rim * 0.55);
+            float rim  = pow(fres, 2.4);
+            col = mix(col, uOchre, rim * 0.55);
 
-            // rim-lit from secondary direction for painterly contrast
-            float rimLit = pow(max(dot(N, R), 0.0), 8.0);
-            c += uSienna * rimLit * 0.12;
-
-            // pointer influence — subtle highlight follow
-            vec2 np = vec2(N.x, N.y);
-            float pd = 1.0 - clamp(length(np - uPointer), 0.0, 1.0);
-            c += uPaper * pow(pd, 6.0) * 0.08;
+            // secondary rim-lit direction for drama
+            float rl = pow(max(dot(N, R), 0.0), 6.0);
+            col += uSienna * rl * 0.18;
 
             // Modes
             if (uMode == 1) {
-              // flat diffuse comparison
-              c = uPaperDim * nl;
+              col = uPaperDim * nl;
             } else if (uMode == 2) {
-              // rim isolation
-              c = mix(uCanvas, uSienna, rim);
+              col = mix(uShadow, uOchre, rim);
             }
 
-            // soft vignette (atelier feel)
-            float vg = smoothstep(0.95, 0.3, length(vUv - 0.5));
-            c *= mix(0.7, 1.0, vg);
-
-            gl_FragColor = vec4(c, 1.0);
+            gl_FragColor = vec4(col, 1.0);
           }
         `;
 
@@ -2370,130 +2261,92 @@
         const mesh = new THREE.Mesh(geometry, material);
         scene.add(mesh);
 
-        // Background swirl plane (painterly backdrop)
-        const bgGeom = new THREE.PlaneGeometry(20, 20);
-        const bgMat = new THREE.ShaderMaterial({
-          uniforms: {
-            uTime: uniforms.uTime,
-            uCanvas: uniforms.uCanvas,
-            uCanvas2: uniforms.uCanvas2,
-            uSienna: uniforms.uSienna,
-          },
-          vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
-          fragmentShader: `
-            precision highp float;
-            varying vec2 vUv;
-            uniform float uTime;
-            uniform vec3 uCanvas; uniform vec3 uCanvas2; uniform vec3 uSienna;
-            float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
-            float n(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f);
-              return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),
-                         mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);
-            }
-            float fbm(vec2 p){ float v=0.0,a=0.5; for(int i=0;i<5;i++){ v+=a*n(p); p*=2.03; a*=0.5;} return v; }
-            void main(){
-              vec2 uv = vUv;
-              float f = fbm(uv*2.5 + uTime*0.02);
-              vec3 c = mix(uCanvas, uCanvas2, f);
-              c = mix(c, uSienna*0.4, smoothstep(0.55,0.85,f)*0.25);
-              // radial falloff
-              float d = length(uv-0.5);
-              c *= smoothstep(1.1, 0.2, d);
-              gl_FragColor = vec4(c,1.0);
-            }
-          `,
-          depthWrite: false,
-          depthTest: false,
-        });
-        const bg = new THREE.Mesh(bgGeom, bgMat);
-        bg.position.z = -5;
-        scene.add(bg);
-
-        // Sizing
+        // ---- Sizing (robust: runs on RAF + resize + ResizeObserver) ----
         function resize() {
           const rect = container.getBoundingClientRect();
-          const w = Math.max(1, rect.width);
-          const h = Math.max(1, rect.height);
+          const w = Math.max(2, Math.floor(rect.width));
+          const h = Math.max(2, Math.floor(rect.height));
           renderer.setSize(w, h, false);
           camera.aspect = w / h;
           camera.updateProjectionMatrix();
         }
         resize();
-        const ro = new ResizeObserver(resize);
-        ro.observe(container);
+        requestAnimationFrame(resize);
+        setTimeout(resize, 250);
+        window.addEventListener("resize", resize);
+        try { new ResizeObserver(resize).observe(container); } catch (_) {}
 
-        // Pointer interaction
-        const pointer = { x: 0, y: 0, tx: 0, ty: 0, dragging: false, lastX: 0, lastY: 0 };
-        const rot = { x: 0.2, y: 0, vx: 0, vy: 0, tx: 0.2, ty: 0 };
-
-        container.addEventListener("pointermove", (e) => {
-          const rect = container.getBoundingClientRect();
-          const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-          const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-          pointer.tx = nx;
-          pointer.ty = ny;
-          if (pointer.dragging) {
-            const dx = e.clientX - pointer.lastX;
-            const dy = e.clientY - pointer.lastY;
-            rot.ty += dx * 0.005;
-            rot.tx += dy * 0.005;
-            rot.tx = Math.max(-1.2, Math.min(1.2, rot.tx));
-            pointer.lastX = e.clientX;
-            pointer.lastY = e.clientY;
-          }
-        });
+        // ---- Drag rotation ----
+        const rot = { x: 0.2, y: 0, tx: 0.2, ty: 0 };
+        let dragging = false;
+        let lx = 0, ly = 0;
+        let activePointer = null;
 
         container.addEventListener("pointerdown", (e) => {
-          pointer.dragging = true;
-          pointer.lastX = e.clientX;
-          pointer.lastY = e.clientY;
-          container.setPointerCapture(e.pointerId);
+          dragging = true;
+          activePointer = e.pointerId;
+          lx = e.clientX;
+          ly = e.clientY;
+          try { container.setPointerCapture(e.pointerId); } catch (_) {}
+          e.preventDefault();
         });
-        container.addEventListener("pointerup", (e) => {
-          pointer.dragging = false;
-          try { container.releasePointerCapture(e.pointerId); } catch(_) {}
-        });
-        container.addEventListener("pointercancel", () => { pointer.dragging = false; });
 
-        // Mode buttons
+        container.addEventListener("pointermove", (e) => {
+          if (!dragging || e.pointerId !== activePointer) return;
+          const dx = e.clientX - lx;
+          const dy = e.clientY - ly;
+          rot.ty += dx * 0.007;
+          rot.tx += dy * 0.007;
+          rot.tx = Math.max(-1.3, Math.min(1.3, rot.tx));
+          lx = e.clientX;
+          ly = e.clientY;
+        });
+
+        function endDrag(e) {
+          if (e && e.pointerId !== activePointer && activePointer !== null) return;
+          dragging = false;
+          activePointer = null;
+          try { container.releasePointerCapture(e.pointerId); } catch (_) {}
+        }
+        container.addEventListener("pointerup", endDrag);
+        container.addEventListener("pointercancel", endDrag);
+        container.addEventListener("pointerleave", endDrag);
+
+        // ---- Mode buttons ----
         const buttons = container.querySelectorAll("[data-mode]");
         buttons.forEach((btn) => {
-          btn.addEventListener("click", () => {
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
             buttons.forEach((b) => b.setAttribute("aria-pressed", "false"));
             btn.setAttribute("aria-pressed", "true");
             const map = { painterly: 0, flat: 1, rim: 2 };
             uniforms.uMode.value = map[btn.dataset.mode] ?? 0;
           });
+          // prevent drag start when clicking a control
+          btn.addEventListener("pointerdown", (e) => e.stopPropagation());
         });
 
-        // Pause when offscreen
-        let visible = true;
-        const vio = new IntersectionObserver((entries) => {
-          entries.forEach((e) => (visible = e.isIntersecting));
-        }, { threshold: 0 });
-        vio.observe(container);
+        // ---- Visibility pause ----
+        let onscreen = true;
+        try {
+          new IntersectionObserver((entries) => {
+            entries.forEach((e) => (onscreen = e.isIntersecting));
+          }, { threshold: 0 }).observe(container);
+        } catch (_) {}
 
+        // ---- Animation loop ----
         const clock = new THREE.Clock();
         function tick() {
-          const dt = clock.getDelta();
+          const dt = Math.min(clock.getDelta(), 0.05);
           uniforms.uTime.value += dt;
 
-          // ease pointer
-          pointer.x += (pointer.tx - pointer.x) * 0.08;
-          pointer.y += (pointer.ty - pointer.y) * 0.08;
-          uniforms.uPointer.value.set(pointer.x * 0.5, pointer.y * 0.5);
-
-          // auto-rotate when idle
-          if (!pointer.dragging) {
-            rot.ty += dt * 0.18;
-          }
+          if (!dragging) rot.ty += dt * 0.22;
           rot.x += (rot.tx - rot.x) * 0.08;
-          rot.y += (rot.ty - rot.y) * 0.12;
+          rot.y += (rot.ty - rot.y) * 0.1;
+          mesh.rotation.x = rot.x;
+          mesh.rotation.y = rot.y;
 
-          mesh.rotation.x = rot.x + pointer.y * 0.08;
-          mesh.rotation.y = rot.y + pointer.x * 0.12;
-
-          if (visible) renderer.render(scene, camera);
+          if (onscreen) renderer.render(scene, camera);
           requestAnimationFrame(tick);
         }
         tick();
