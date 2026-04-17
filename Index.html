@@ -17,6 +17,14 @@
       rel="stylesheet"
     />
 
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.161.0/build/three.module.js"
+        }
+      }
+    </script>
+
     <style>
       /* -------------------------------------------------------------
          Design tokens — painterly atelier dark theme
@@ -778,10 +786,466 @@
         white-space: nowrap;
         border: 0;
       }
+
+      /* -------------------------------------------------------------
+         Painterly brush cursor trail (global overlay canvas)
+         ------------------------------------------------------------- */
+      #brush-trail {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        z-index: 2;
+        mix-blend-mode: screen;
+        opacity: 0.85;
+      }
+
+      @media (hover: none) {
+        #brush-trail { display: none; }
+      }
+
+      /* -------------------------------------------------------------
+         3D specimen plate — hero painterly shader viewer
+         ------------------------------------------------------------- */
+      .specimen {
+        position: relative;
+        margin: 0 0 48px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        background:
+          radial-gradient(ellipse at 30% 20%, rgba(217, 165, 102, 0.06), transparent 60%),
+          linear-gradient(180deg, var(--canvas-2), var(--canvas));
+        aspect-ratio: 16 / 10;
+        cursor: grab;
+      }
+
+      .specimen:active { cursor: grabbing; }
+
+      .specimen canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .specimen .specimen-frame {
+        position: absolute;
+        inset: 12px;
+        border: 1px solid color-mix(in srgb, var(--paper) 6%, transparent);
+        border-radius: 2px;
+        pointer-events: none;
+      }
+
+      .specimen .specimen-corner {
+        position: absolute;
+        width: 14px;
+        height: 14px;
+        border: 1px solid var(--sienna);
+        pointer-events: none;
+      }
+      .specimen .c-tl { top: 8px; left: 8px; border-right: 0; border-bottom: 0; }
+      .specimen .c-tr { top: 8px; right: 8px; border-left: 0; border-bottom: 0; }
+      .specimen .c-bl { bottom: 8px; left: 8px; border-right: 0; border-top: 0; }
+      .specimen .c-br { bottom: 8px; right: 8px; border-left: 0; border-top: 0; }
+
+      .specimen .specimen-label {
+        position: absolute;
+        top: 18px;
+        left: 22px;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+        color: var(--paper-dim);
+        pointer-events: none;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .specimen .specimen-label::before {
+        content: "";
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: var(--sienna);
+        box-shadow: 0 0 0 3px color-mix(in srgb, var(--sienna) 25%, transparent);
+        animation: pulse 2.4s ease-in-out infinite;
+      }
+
+      @keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.5; transform: scale(0.85); }
+      }
+
+      .specimen .specimen-readout {
+        position: absolute;
+        bottom: 18px;
+        left: 22px;
+        right: 22px;
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-end;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--muted);
+        pointer-events: none;
+      }
+
+      .specimen .specimen-readout .title {
+        color: var(--paper);
+        letter-spacing: 0.14em;
+      }
+
+      .specimen .specimen-hint {
+        position: absolute;
+        bottom: 18px;
+        right: 22px;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--muted);
+        pointer-events: none;
+      }
+
+      /* Specimen control strip */
+      .specimen-controls {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        display: flex;
+        gap: 6px;
+        z-index: 3;
+      }
+
+      .specimen-controls button {
+        appearance: none;
+        border: 1px solid var(--border-strong);
+        background: color-mix(in srgb, var(--canvas) 70%, transparent);
+        backdrop-filter: blur(6px);
+        color: var(--paper-dim);
+        font-family: var(--font-mono);
+        font-size: 10px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        padding: 7px 11px;
+        border-radius: 2px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .specimen-controls button:hover {
+        color: var(--paper);
+        border-color: var(--sienna);
+      }
+
+      .specimen-controls button[aria-pressed="true"] {
+        color: var(--canvas);
+        background: var(--sienna);
+        border-color: var(--sienna);
+      }
+
+      /* -------------------------------------------------------------
+         Brush channel visualizer (Step 2)
+         ------------------------------------------------------------- */
+      .brush-viz {
+        margin: 32px 0;
+        padding: 0;
+        background: var(--canvas-2);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+      }
+
+      .brush-viz-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--border);
+        font-family: var(--font-mono);
+        font-size: 10px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      .brush-viz-channels {
+        display: grid;
+        grid-template-columns: repeat(4, 1fr);
+        gap: 1px;
+        background: var(--border);
+      }
+
+      .brush-viz-channels > div {
+        aspect-ratio: 1 / 1;
+        position: relative;
+        background: var(--canvas-2);
+        overflow: hidden;
+      }
+
+      .brush-viz-channels canvas {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .brush-viz-channels .ch-label {
+        position: absolute;
+        bottom: 8px;
+        left: 10px;
+        right: 10px;
+        font-family: var(--font-mono);
+        font-size: 10px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--paper);
+        display: flex;
+        justify-content: space-between;
+        pointer-events: none;
+        text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+      }
+
+      .brush-viz-channels .ch-label .tag {
+        color: var(--sienna);
+      }
+
+      /* -------------------------------------------------------------
+         Inverted hull outline demo (Step 4)
+         ------------------------------------------------------------- */
+      .hull-demo {
+        margin: 32px 0;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        overflow: hidden;
+        background: var(--canvas-2);
+      }
+
+      .hull-demo-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 18px;
+        border-bottom: 1px solid var(--border);
+        font-family: var(--font-mono);
+        font-size: 10px;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--muted);
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .hull-demo-head .controls {
+        display: flex;
+        gap: 6px;
+      }
+
+      .hull-demo-head button {
+        appearance: none;
+        border: 1px solid var(--border-strong);
+        background: transparent;
+        color: var(--paper-dim);
+        font-family: var(--font-mono);
+        font-size: 10px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        padding: 6px 10px;
+        border-radius: 2px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+      }
+
+      .hull-demo-head button:hover { color: var(--paper); border-color: var(--sienna); }
+      .hull-demo-head button[aria-pressed="true"] {
+        color: var(--canvas);
+        background: var(--ochre);
+        border-color: var(--ochre);
+      }
+
+      .hull-demo-stage {
+        position: relative;
+        aspect-ratio: 16 / 9;
+        cursor: grab;
+      }
+
+      .hull-demo-stage:active { cursor: grabbing; }
+
+      .hull-demo-stage canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      /* -------------------------------------------------------------
+         3D tilt for cards
+         ------------------------------------------------------------- */
+      .grid {
+        perspective: 1200px;
+      }
+
+      .card {
+        transform-style: preserve-3d;
+        will-change: transform;
+        transition:
+          transform 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+          border-color 0.3s ease,
+          box-shadow 0.45s ease;
+      }
+
+      .card::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        border-radius: var(--radius);
+        background: radial-gradient(
+          circle at var(--mx, 50%) var(--my, 50%),
+          color-mix(in srgb, var(--sienna) 18%, transparent),
+          transparent 45%
+        );
+        opacity: 0;
+        transition: opacity 0.3s ease;
+        pointer-events: none;
+      }
+
+      .card {
+        position: relative;
+      }
+
+      .card:hover {
+        border-color: var(--sienna);
+        box-shadow:
+          0 20px 40px -20px rgba(0, 0, 0, 0.6),
+          0 0 0 1px color-mix(in srgb, var(--sienna) 20%, transparent);
+      }
+
+      .card:hover::before {
+        opacity: 1;
+      }
+
+      .card .idx,
+      .card h4,
+      .card p {
+        position: relative;
+        transform: translateZ(20px);
+      }
+
+      /* -------------------------------------------------------------
+         Painterly brush-mask reveal on scroll
+         ------------------------------------------------------------- */
+      .reveal {
+        opacity: 0;
+        transform: translateY(16px);
+        transition:
+          opacity 0.9s cubic-bezier(0.22, 1, 0.36, 1),
+          transform 0.9s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      .reveal.is-visible {
+        opacity: 1;
+        transform: none;
+      }
+
+      /* Step number reveal — paint-in effect */
+      .step-number {
+        position: relative;
+        display: inline-block;
+      }
+
+      .step-number::after {
+        content: "";
+        position: absolute;
+        left: -4px;
+        right: -4px;
+        top: 0;
+        bottom: 0;
+        background: var(--canvas);
+        transform-origin: right center;
+        transform: scaleX(1);
+        transition: transform 1s cubic-bezier(0.76, 0, 0.24, 1);
+      }
+
+      section.step.is-visible .step-number::after {
+        transform: scaleX(0);
+      }
+
+      /* Animated brush ornament */
+      .ornament {
+        position: relative;
+        height: 48px;
+        margin: 56px 0;
+      }
+
+      .ornament svg {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 180px;
+        height: 24px;
+        overflow: visible;
+      }
+
+      .ornament svg path {
+        stroke: var(--sienna);
+        stroke-width: 1.2;
+        fill: none;
+        stroke-linecap: round;
+        stroke-dasharray: 220;
+        stroke-dashoffset: 220;
+        transition: stroke-dashoffset 1.4s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+
+      .ornament.is-visible svg path {
+        stroke-dashoffset: 0;
+      }
+
+      .ornament svg circle {
+        fill: var(--sienna);
+        opacity: 0;
+        transition: opacity 0.4s ease 1s;
+      }
+
+      .ornament.is-visible svg circle {
+        opacity: 1;
+      }
+
+      /* Hide legacy span */
+      .ornament span { display: none; }
+
+      /* Step-number subtle float */
+      @media (prefers-reduced-motion: no-preference) {
+        .step-number {
+          animation: driftN 6s ease-in-out infinite alternate;
+        }
+        section.step:nth-of-type(even) .step-number {
+          animation-delay: -3s;
+        }
+      }
+
+      @keyframes driftN {
+        from { transform: translateY(0) rotate(-0.5deg); }
+        to   { transform: translateY(-4px) rotate(0.5deg); }
+      }
+
+      /* Reduced motion */
+      @media (prefers-reduced-motion: reduce) {
+        .reveal { opacity: 1; transform: none; transition: none; }
+        .step-number::after { transform: scaleX(0); }
+        .ornament svg path { stroke-dashoffset: 0; }
+        .ornament svg circle { opacity: 1; }
+        #brush-trail { display: none; }
+        .specimen-label::before { animation: none; }
+      }
     </style>
   </head>
   <body>
     <div class="progress" id="progress" aria-hidden="true"></div>
+    <canvas id="brush-trail" aria-hidden="true"></canvas>
 
     <div class="shell">
       <div class="layout">
@@ -817,6 +1281,39 @@
         <main class="content">
           <!-- Hero -->
           <section class="hero" id="overview" aria-labelledby="hero-title">
+            <div
+              class="specimen"
+              id="hero-specimen"
+              role="img"
+              aria-label="Interactive painterly shader specimen — drag to rotate"
+            >
+              <canvas id="hero-canvas"></canvas>
+              <div class="specimen-frame" aria-hidden="true"></div>
+              <span class="specimen-corner c-tl" aria-hidden="true"></span>
+              <span class="specimen-corner c-tr" aria-hidden="true"></span>
+              <span class="specimen-corner c-bl" aria-hidden="true"></span>
+              <span class="specimen-corner c-br" aria-hidden="true"></span>
+
+              <div class="specimen-label">Live · Painterly Shader</div>
+
+              <div class="specimen-controls" aria-label="Shader controls">
+                <button type="button" data-mode="painterly" aria-pressed="true">
+                  Paint
+                </button>
+                <button type="button" data-mode="flat" aria-pressed="false">
+                  Flat
+                </button>
+                <button type="button" data-mode="rim" aria-pressed="false">
+                  Rim
+                </button>
+              </div>
+
+              <div class="specimen-readout">
+                <span class="title">Specimen 001 · Impasto Orb</span>
+                <span>Drag to orbit</span>
+              </div>
+            </div>
+
             <h2 id="hero-title">
               Throwing hyper-realistic assets into a stylized world is a recipe
               for <em>visual noise.</em>
@@ -974,7 +1471,12 @@
             </div>
           </section>
 
-          <div class="ornament" aria-hidden="true"><span></span></div>
+          <div class="ornament" aria-hidden="true" data-reveal>
+            <svg viewBox="0 0 180 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M2 12 C 30 4, 60 20, 90 12 S 150 4, 178 12" />
+              <circle cx="90" cy="12" r="2.4" />
+            </svg>
+          </div>
 
           <!-- Step 2 -->
           <section class="step" id="step-2" aria-labelledby="step-2-title">
@@ -1016,6 +1518,31 @@
               </li>
             </ul>
 
+            <div class="brush-viz" id="brush-viz" aria-label="Packed brush texture channels">
+              <div class="brush-viz-head">
+                <span>Packed Brush Texture · Live</span>
+                <span>RGB Channels</span>
+              </div>
+              <div class="brush-viz-channels">
+                <div>
+                  <canvas data-channel="r"></canvas>
+                  <div class="ch-label"><span class="tag">R</span><span>Breakup</span></div>
+                </div>
+                <div>
+                  <canvas data-channel="g"></canvas>
+                  <div class="ch-label"><span class="tag">G</span><span>Direction</span></div>
+                </div>
+                <div>
+                  <canvas data-channel="b"></canvas>
+                  <div class="ch-label"><span class="tag">B</span><span>Detail</span></div>
+                </div>
+                <div>
+                  <canvas data-channel="rgb"></canvas>
+                  <div class="ch-label"><span class="tag">RGB</span><span>Packed</span></div>
+                </div>
+              </div>
+            </div>
+
             <h3>Cheap Impasto Depth</h3>
             <p>
               Run your base texture through a
@@ -1045,7 +1572,12 @@
             </div>
           </section>
 
-          <div class="ornament" aria-hidden="true"><span></span></div>
+          <div class="ornament" aria-hidden="true" data-reveal>
+            <svg viewBox="0 0 180 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M2 12 C 30 4, 60 20, 90 12 S 150 4, 178 12" />
+              <circle cx="90" cy="12" r="2.4" />
+            </svg>
+          </div>
 
           <!-- Step 3 -->
           <section class="step" id="step-3" aria-labelledby="step-3-title">
@@ -1171,7 +1703,12 @@
             </p>
           </section>
 
-          <div class="ornament" aria-hidden="true"><span></span></div>
+          <div class="ornament" aria-hidden="true" data-reveal>
+            <svg viewBox="0 0 180 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M2 12 C 30 4, 60 20, 90 12 S 150 4, 178 12" />
+              <circle cx="90" cy="12" r="2.4" />
+            </svg>
+          </div>
 
           <!-- Step 4 -->
           <section class="step" id="step-4" aria-labelledby="step-4-title">
@@ -1202,6 +1739,20 @@
               outward along their normals and only renders the back of the
               faces.
             </p>
+
+            <div class="hull-demo" id="hull-demo" aria-label="Interactive inverted hull outline demo">
+              <div class="hull-demo-head">
+                <span>Inverted Hull · Live Demo</span>
+                <div class="controls">
+                  <button type="button" data-hull="outline" aria-pressed="true">Outline</button>
+                  <button type="button" data-hull="breakup" aria-pressed="true">Breakup</button>
+                  <button type="button" data-hull="thick" aria-pressed="false">Thicker</button>
+                </div>
+              </div>
+              <div class="hull-demo-stage" id="hull-stage">
+                <canvas id="hull-canvas"></canvas>
+              </div>
+            </div>
 
             <h3>The Smooth Normal Secret</h3>
             <p>
@@ -1330,6 +1881,809 @@
         );
 
         map.forEach((_, section) => observer.observe(section));
+      })();
+
+      // -------------------------------------------------------------
+      // Reveal-on-scroll for sections, cards, ornaments, and tagged nodes
+      // -------------------------------------------------------------
+      (function () {
+        const prefersReduced = window.matchMedia(
+          "(prefers-reduced-motion: reduce)"
+        ).matches;
+
+        const targets = document.querySelectorAll(
+          "section.step, .card, .ornament, .callout, .specimen, .brush-viz, .hull-demo, [data-reveal]"
+        );
+
+        targets.forEach((el) => el.classList.add("reveal"));
+
+        if (prefersReduced) {
+          targets.forEach((el) => el.classList.add("is-visible"));
+          return;
+        }
+
+        const io = new IntersectionObserver(
+          (entries) => {
+            entries.forEach((entry) => {
+              if (entry.isIntersecting) {
+                entry.target.classList.add("is-visible");
+                io.unobserve(entry.target);
+              }
+            });
+          },
+          { rootMargin: "0px 0px -10% 0px", threshold: 0.08 }
+        );
+
+        targets.forEach((el) => io.observe(el));
+      })();
+
+      // -------------------------------------------------------------
+      // 3D tilt on grid cards
+      // -------------------------------------------------------------
+      (function () {
+        const prefersReduced = window.matchMedia(
+          "(prefers-reduced-motion: reduce)"
+        ).matches;
+        if (prefersReduced) return;
+
+        const cards = document.querySelectorAll(".card");
+
+        cards.forEach((card) => {
+          let rect = null;
+          function onEnter() { rect = card.getBoundingClientRect(); }
+          function onMove(e) {
+            if (!rect) rect = card.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / rect.width;
+            const y = (e.clientY - rect.top) / rect.height;
+            const rx = (0.5 - y) * 8;
+            const ry = (x - 0.5) * 10;
+            card.style.transform = `perspective(900px) rotateX(${rx}deg) rotateY(${ry}deg) translateZ(0)`;
+            card.style.setProperty("--mx", (x * 100).toFixed(1) + "%");
+            card.style.setProperty("--my", (y * 100).toFixed(1) + "%");
+          }
+          function onLeave() {
+            rect = null;
+            card.style.transform = "";
+          }
+          card.addEventListener("pointerenter", onEnter);
+          card.addEventListener("pointermove", onMove);
+          card.addEventListener("pointerleave", onLeave);
+        });
+      })();
+
+      // -------------------------------------------------------------
+      // Painterly brush-cursor trail
+      // -------------------------------------------------------------
+      (function () {
+        const prefersReduced = window.matchMedia(
+          "(prefers-reduced-motion: reduce)"
+        ).matches;
+        if (prefersReduced) return;
+        if (matchMedia("(hover: none)").matches) return;
+
+        const canvas = document.getElementById("brush-trail");
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+
+        let w = 0, h = 0, dpr = Math.min(window.devicePixelRatio || 1, 2);
+        function resize() {
+          w = canvas.width = Math.floor(window.innerWidth * dpr);
+          h = canvas.height = Math.floor(window.innerHeight * dpr);
+          canvas.style.width = window.innerWidth + "px";
+          canvas.style.height = window.innerHeight + "px";
+        }
+        resize();
+        window.addEventListener("resize", resize);
+
+        const dabs = [];
+        const MAX = 120;
+        let lastX = null, lastY = null, lastT = 0;
+
+        const palette = [
+          [201, 106, 63],   // sienna
+          [217, 165, 102],  // ochre
+          [236, 228, 211],  // paper
+        ];
+
+        window.addEventListener("pointermove", (e) => {
+          const x = e.clientX * dpr;
+          const y = e.clientY * dpr;
+          const t = performance.now();
+          if (lastX !== null) {
+            const dx = x - lastX, dy = y - lastY;
+            const dist = Math.hypot(dx, dy);
+            const steps = Math.min(8, Math.max(1, Math.floor(dist / (6 * dpr))));
+            for (let i = 0; i < steps; i++) {
+              const k = (i + 1) / steps;
+              const px = lastX + dx * k;
+              const py = lastY + dy * k;
+              dabs.push({
+                x: px,
+                y: py,
+                r: (8 + Math.random() * 10) * dpr,
+                a: 0.18 + Math.random() * 0.12,
+                c: palette[Math.floor(Math.random() * palette.length)],
+                rot: Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.4,
+                life: 1,
+              });
+              if (dabs.length > MAX) dabs.shift();
+            }
+          }
+          lastX = x; lastY = y; lastT = t;
+        }, { passive: true });
+
+        function render() {
+          // fade
+          ctx.globalCompositeOperation = "destination-out";
+          ctx.fillStyle = "rgba(0,0,0,0.06)";
+          ctx.fillRect(0, 0, w, h);
+
+          ctx.globalCompositeOperation = "lighter";
+          for (let i = dabs.length - 1; i >= 0; i--) {
+            const d = dabs[i];
+            d.life -= 0.018;
+            if (d.life <= 0) { dabs.splice(i, 1); continue; }
+            const alpha = d.a * d.life;
+            ctx.save();
+            ctx.translate(d.x, d.y);
+            ctx.rotate(d.rot);
+            const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, d.r);
+            grad.addColorStop(0, `rgba(${d.c[0]},${d.c[1]},${d.c[2]},${alpha})`);
+            grad.addColorStop(0.6, `rgba(${d.c[0]},${d.c[1]},${d.c[2]},${alpha * 0.35})`);
+            grad.addColorStop(1, `rgba(${d.c[0]},${d.c[1]},${d.c[2]},0)`);
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, d.r * 1.7, d.r * 0.6, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+          }
+          requestAnimationFrame(render);
+        }
+        requestAnimationFrame(render);
+      })();
+
+      // -------------------------------------------------------------
+      // Brush channel visualizer — procedural noise on canvas 2D
+      // -------------------------------------------------------------
+      (function () {
+        const viz = document.getElementById("brush-viz");
+        if (!viz) return;
+
+        // Value noise
+        const rand = (x, y) => {
+          const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453;
+          return s - Math.floor(s);
+        };
+        const smooth = (t) => t * t * (3 - 2 * t);
+        const vnoise = (x, y) => {
+          const xi = Math.floor(x), yi = Math.floor(y);
+          const xf = x - xi, yf = y - yi;
+          const a = rand(xi, yi);
+          const b = rand(xi + 1, yi);
+          const c = rand(xi, yi + 1);
+          const d = rand(xi + 1, yi + 1);
+          const u = smooth(xf), v = smooth(yf);
+          return a * (1 - u) * (1 - v) + b * u * (1 - v) + c * (1 - u) * v + d * u * v;
+        };
+        const fbm = (x, y) => {
+          let v = 0, amp = 0.5, f = 1;
+          for (let i = 0; i < 4; i++) {
+            v += amp * vnoise(x * f, y * f);
+            f *= 2;
+            amp *= 0.5;
+          }
+          return v;
+        };
+
+        function paint(canvas, channel) {
+          const ctx = canvas.getContext("2d");
+          const rect = canvas.getBoundingClientRect();
+          const dpr = Math.min(window.devicePixelRatio || 1, 2);
+          const W = Math.max(64, Math.floor(rect.width * dpr));
+          const H = Math.max(64, Math.floor(rect.height * dpr));
+          canvas.width = W;
+          canvas.height = H;
+
+          const img = ctx.createImageData(W, H);
+          const data = img.data;
+
+          for (let y = 0; y < H; y++) {
+            for (let x = 0; x < W; x++) {
+              const u = x / W, v = y / H;
+
+              // R: soft blurred brush shape (large fbm)
+              const r = Math.pow(fbm(u * 3.5, v * 3.5), 1.2);
+              // G: brush direction — streaky anisotropic noise
+              const ang = fbm(u * 2.0, v * 2.0) * Math.PI * 2;
+              const streak = fbm(
+                u * 12 + Math.cos(ang) * 2,
+                v * 12 + Math.sin(ang) * 2
+              );
+              const g = streak;
+              // B: fine detail mask
+              const b = fbm(u * 14, v * 14) * fbm(u * 6 + 5, v * 6 + 5);
+
+              let R = 0, G = 0, B = 0;
+              if (channel === "r") {
+                const k = Math.round(r * 255);
+                R = 201 * (r); G = 106 * (r); B = 63 * (r);
+                R = Math.min(255, R + k * 0.4);
+              } else if (channel === "g") {
+                const k = Math.round(g * 255);
+                R = 217 * g * 0.6; G = 165 * g; B = 102 * g * 0.8;
+                R = Math.min(255, R + k * 0.3);
+              } else if (channel === "b") {
+                const k = Math.round(b * 1.6 * 255);
+                R = 236 * b * 0.4; G = 228 * b * 0.5; B = 211 * b * 0.6;
+                const kk = Math.min(255, k);
+                R += kk * 0.2; G += kk * 0.2; B += kk * 0.2;
+              } else {
+                // packed RGB
+                R = r * 220;
+                G = g * 180;
+                B = b * 210;
+              }
+
+              const i = (y * W + x) * 4;
+              data[i] = R; data[i + 1] = G; data[i + 2] = B; data[i + 3] = 255;
+            }
+          }
+          ctx.putImageData(img, 0, 0);
+        }
+
+        const canvases = viz.querySelectorAll("canvas");
+        function renderAll() {
+          canvases.forEach((c) => paint(c, c.dataset.channel));
+        }
+
+        // Only paint when visible
+        const io = new IntersectionObserver((entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) {
+              renderAll();
+              io.disconnect();
+            }
+          });
+        }, { rootMargin: "100px" });
+        io.observe(viz);
+
+        let rAF = 0;
+        window.addEventListener("resize", () => {
+          clearTimeout(rAF);
+          rAF = setTimeout(renderAll, 200);
+        });
+      })();
+    </script>
+
+    <!-- -------------------------------------------------------------
+         Three.js — painterly hero shader + inverted hull demo
+         ------------------------------------------------------------- -->
+    <script type="module">
+      import * as THREE from "three";
+
+      const prefersReduced = window.matchMedia(
+        "(prefers-reduced-motion: reduce)"
+      ).matches;
+
+      // =============================================================
+      // Painterly Hero Shader
+      // =============================================================
+      (function heroScene() {
+        const container = document.getElementById("hero-specimen");
+        const canvas = document.getElementById("hero-canvas");
+        if (!container || !canvas) return;
+
+        const renderer = new THREE.WebGLRenderer({
+          canvas,
+          antialias: true,
+          alpha: true,
+          powerPreference: "high-performance",
+        });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setClearColor(0x000000, 0);
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
+        camera.position.set(0, 0, 4.2);
+
+        // Soft key + rim lights (data passed via uniforms for custom shader)
+        const lightDir = new THREE.Vector3(0.6, 0.7, 0.5).normalize();
+        const rimDir = new THREE.Vector3(-0.8, 0.3, -0.4).normalize();
+
+        const geometry = new THREE.IcosahedronGeometry(1.3, 64);
+
+        const uniforms = {
+          uTime: { value: 0 },
+          uLightDir: { value: lightDir },
+          uRimDir: { value: rimDir },
+          uCanvas: { value: new THREE.Color("#12110f") },
+          uCanvas2: { value: new THREE.Color("#22201b") },
+          uPaper: { value: new THREE.Color("#ece4d3") },
+          uPaperDim: { value: new THREE.Color("#bcb4a3") },
+          uSienna: { value: new THREE.Color("#c96a3f") },
+          uOchre: { value: new THREE.Color("#d9a566") },
+          uMode: { value: 0 }, // 0 painterly, 1 flat, 2 rim
+          uPointer: { value: new THREE.Vector2(0, 0) },
+        };
+
+        const vertex = /* glsl */ `
+          varying vec3 vNormal;
+          varying vec3 vWorldNormal;
+          varying vec3 vViewDir;
+          varying vec3 vPos;
+          varying vec2 vUv;
+          uniform float uTime;
+
+          // classic 3D simplex-lite (value noise blend)
+          float hash(vec3 p){ return fract(sin(dot(p, vec3(127.1,311.7,74.7))) * 43758.5453); }
+          float vnoise(vec3 p){
+            vec3 i = floor(p), f = fract(p);
+            f = f*f*(3.0 - 2.0*f);
+            float n000=hash(i), n100=hash(i+vec3(1,0,0));
+            float n010=hash(i+vec3(0,1,0)), n110=hash(i+vec3(1,1,0));
+            float n001=hash(i+vec3(0,0,1)), n101=hash(i+vec3(1,0,1));
+            float n011=hash(i+vec3(0,1,1)), n111=hash(i+vec3(1,1,1));
+            float nx00 = mix(n000,n100,f.x);
+            float nx10 = mix(n010,n110,f.x);
+            float nx01 = mix(n001,n101,f.x);
+            float nx11 = mix(n011,n111,f.x);
+            float nxy0 = mix(nx00,nx10,f.y);
+            float nxy1 = mix(nx01,nx11,f.y);
+            return mix(nxy0,nxy1,f.z);
+          }
+
+          void main() {
+            vUv = uv;
+            vec3 pos = position;
+            // subtle wet-paint wobble
+            float w = vnoise(position * 1.8 + uTime * 0.12);
+            pos += normal * (w - 0.5) * 0.03;
+
+            vec4 worldPos = modelMatrix * vec4(pos, 1.0);
+            vWorldNormal = normalize(mat3(modelMatrix) * normal);
+            vNormal = normalize(normalMatrix * normal);
+            vPos = worldPos.xyz;
+            vViewDir = normalize(cameraPosition - worldPos.xyz);
+
+            gl_Position = projectionMatrix * viewMatrix * worldPos;
+          }
+        `;
+
+        const fragment = /* glsl */ `
+          precision highp float;
+          varying vec3 vNormal;
+          varying vec3 vWorldNormal;
+          varying vec3 vViewDir;
+          varying vec3 vPos;
+          varying vec2 vUv;
+
+          uniform float uTime;
+          uniform vec3 uLightDir;
+          uniform vec3 uRimDir;
+          uniform vec3 uCanvas;
+          uniform vec3 uCanvas2;
+          uniform vec3 uPaper;
+          uniform vec3 uPaperDim;
+          uniform vec3 uSienna;
+          uniform vec3 uOchre;
+          uniform int  uMode;
+          uniform vec2 uPointer;
+
+          float hash(vec3 p){ return fract(sin(dot(p, vec3(127.1,311.7,74.7))) * 43758.5453); }
+          float vnoise(vec3 p){
+            vec3 i = floor(p), f = fract(p);
+            f = f*f*(3.0 - 2.0*f);
+            float n000=hash(i), n100=hash(i+vec3(1,0,0));
+            float n010=hash(i+vec3(0,1,0)), n110=hash(i+vec3(1,1,0));
+            float n001=hash(i+vec3(0,0,1)), n101=hash(i+vec3(1,0,1));
+            float n011=hash(i+vec3(0,1,1)), n111=hash(i+vec3(1,1,1));
+            float nx00 = mix(n000,n100,f.x);
+            float nx10 = mix(n010,n110,f.x);
+            float nx01 = mix(n001,n101,f.x);
+            float nx11 = mix(n011,n111,f.x);
+            float nxy0 = mix(nx00,nx10,f.y);
+            float nxy1 = mix(nx01,nx11,f.y);
+            return mix(nxy0,nxy1,f.z);
+          }
+          float fbm(vec3 p){
+            float v = 0.0, a = 0.5;
+            for (int i=0;i<5;i++){ v += a*vnoise(p); p *= 2.02; a *= 0.5; }
+            return v;
+          }
+
+          void main() {
+            vec3 N = normalize(vWorldNormal);
+            vec3 V = normalize(vViewDir);
+            vec3 L = normalize(uLightDir);
+            vec3 R = normalize(uRimDir);
+
+            // stroke flow — sample fbm with a swirled coordinate
+            vec3 flowP = vPos * 1.6 + vec3(uTime * 0.05, 0.0, -uTime * 0.03);
+            float flow = fbm(flowP);
+            vec3 strokeP = vPos * 3.0 + N * 0.4 + vec3(flow * 0.8);
+
+            // base tonal value driven by lambert + fbm
+            float nl = clamp(dot(N, L) * 0.5 + 0.5, 0.0, 1.0);
+            float paint = fbm(strokeP);
+            float tone = clamp(nl * 0.85 + paint * 0.25 - 0.05, 0.0, 1.0);
+
+            // quantize into painterly bands (K-means-esque)
+            float bands = 5.0;
+            float q = floor(tone * bands) / bands;
+            // soften the edges of bands slightly
+            float nextQ = q + 1.0 / bands;
+            float edge = smoothstep(q + 0.02, nextQ - 0.02, tone);
+            float t = mix(q, nextQ, edge * 0.55);
+
+            // paint palette ramp: canvas -> canvas2 -> sienna -> ochre -> paper
+            vec3 c;
+            if (t < 0.25)      c = mix(uCanvas,   uCanvas2, t / 0.25);
+            else if (t < 0.5)  c = mix(uCanvas2,  uSienna,  (t - 0.25) / 0.25);
+            else if (t < 0.75) c = mix(uSienna,   uOchre,   (t - 0.5) / 0.25);
+            else               c = mix(uOchre,    uPaper,   (t - 0.75) / 0.25);
+
+            // impasto — darken in high-freq pits, lighten on ridges
+            float high = fbm(vPos * 18.0);
+            c *= 0.88 + high * 0.28;
+
+            // dab streaks along flow
+            float streak = fbm(vec3(vPos.xy * 26.0 + flow * 2.0, vPos.z * 4.0));
+            c += (streak - 0.5) * 0.08 * uPaper;
+
+            // rim — ochre edge wear
+            float fres = 1.0 - max(dot(N, V), 0.0);
+            float rim = pow(fres, 2.6);
+            c = mix(c, uOchre, rim * 0.55);
+
+            // rim-lit from secondary direction for painterly contrast
+            float rimLit = pow(max(dot(N, R), 0.0), 8.0);
+            c += uSienna * rimLit * 0.12;
+
+            // pointer influence — subtle highlight follow
+            vec2 np = vec2(N.x, N.y);
+            float pd = 1.0 - clamp(length(np - uPointer), 0.0, 1.0);
+            c += uPaper * pow(pd, 6.0) * 0.08;
+
+            // Modes
+            if (uMode == 1) {
+              // flat diffuse comparison
+              c = uPaperDim * nl;
+            } else if (uMode == 2) {
+              // rim isolation
+              c = mix(uCanvas, uSienna, rim);
+            }
+
+            // soft vignette (atelier feel)
+            float vg = smoothstep(0.95, 0.3, length(vUv - 0.5));
+            c *= mix(0.7, 1.0, vg);
+
+            gl_FragColor = vec4(c, 1.0);
+          }
+        `;
+
+        const material = new THREE.ShaderMaterial({
+          vertexShader: vertex,
+          fragmentShader: fragment,
+          uniforms,
+        });
+
+        const mesh = new THREE.Mesh(geometry, material);
+        scene.add(mesh);
+
+        // Background swirl plane (painterly backdrop)
+        const bgGeom = new THREE.PlaneGeometry(20, 20);
+        const bgMat = new THREE.ShaderMaterial({
+          uniforms: {
+            uTime: uniforms.uTime,
+            uCanvas: uniforms.uCanvas,
+            uCanvas2: uniforms.uCanvas2,
+            uSienna: uniforms.uSienna,
+          },
+          vertexShader: `varying vec2 vUv; void main(){ vUv=uv; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+          fragmentShader: `
+            precision highp float;
+            varying vec2 vUv;
+            uniform float uTime;
+            uniform vec3 uCanvas; uniform vec3 uCanvas2; uniform vec3 uSienna;
+            float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+            float n(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f);
+              return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),
+                         mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y);
+            }
+            float fbm(vec2 p){ float v=0.0,a=0.5; for(int i=0;i<5;i++){ v+=a*n(p); p*=2.03; a*=0.5;} return v; }
+            void main(){
+              vec2 uv = vUv;
+              float f = fbm(uv*2.5 + uTime*0.02);
+              vec3 c = mix(uCanvas, uCanvas2, f);
+              c = mix(c, uSienna*0.4, smoothstep(0.55,0.85,f)*0.25);
+              // radial falloff
+              float d = length(uv-0.5);
+              c *= smoothstep(1.1, 0.2, d);
+              gl_FragColor = vec4(c,1.0);
+            }
+          `,
+          depthWrite: false,
+          depthTest: false,
+        });
+        const bg = new THREE.Mesh(bgGeom, bgMat);
+        bg.position.z = -5;
+        scene.add(bg);
+
+        // Sizing
+        function resize() {
+          const rect = container.getBoundingClientRect();
+          const w = Math.max(1, rect.width);
+          const h = Math.max(1, rect.height);
+          renderer.setSize(w, h, false);
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+        }
+        resize();
+        const ro = new ResizeObserver(resize);
+        ro.observe(container);
+
+        // Pointer interaction
+        const pointer = { x: 0, y: 0, tx: 0, ty: 0, dragging: false, lastX: 0, lastY: 0 };
+        const rot = { x: 0.2, y: 0, vx: 0, vy: 0, tx: 0.2, ty: 0 };
+
+        container.addEventListener("pointermove", (e) => {
+          const rect = container.getBoundingClientRect();
+          const nx = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+          const ny = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+          pointer.tx = nx;
+          pointer.ty = ny;
+          if (pointer.dragging) {
+            const dx = e.clientX - pointer.lastX;
+            const dy = e.clientY - pointer.lastY;
+            rot.ty += dx * 0.005;
+            rot.tx += dy * 0.005;
+            rot.tx = Math.max(-1.2, Math.min(1.2, rot.tx));
+            pointer.lastX = e.clientX;
+            pointer.lastY = e.clientY;
+          }
+        });
+
+        container.addEventListener("pointerdown", (e) => {
+          pointer.dragging = true;
+          pointer.lastX = e.clientX;
+          pointer.lastY = e.clientY;
+          container.setPointerCapture(e.pointerId);
+        });
+        container.addEventListener("pointerup", (e) => {
+          pointer.dragging = false;
+          try { container.releasePointerCapture(e.pointerId); } catch(_) {}
+        });
+        container.addEventListener("pointercancel", () => { pointer.dragging = false; });
+
+        // Mode buttons
+        const buttons = container.querySelectorAll("[data-mode]");
+        buttons.forEach((btn) => {
+          btn.addEventListener("click", () => {
+            buttons.forEach((b) => b.setAttribute("aria-pressed", "false"));
+            btn.setAttribute("aria-pressed", "true");
+            const map = { painterly: 0, flat: 1, rim: 2 };
+            uniforms.uMode.value = map[btn.dataset.mode] ?? 0;
+          });
+        });
+
+        // Pause when offscreen
+        let visible = true;
+        const vio = new IntersectionObserver((entries) => {
+          entries.forEach((e) => (visible = e.isIntersecting));
+        }, { threshold: 0 });
+        vio.observe(container);
+
+        const clock = new THREE.Clock();
+        function tick() {
+          const dt = clock.getDelta();
+          uniforms.uTime.value += dt;
+
+          // ease pointer
+          pointer.x += (pointer.tx - pointer.x) * 0.08;
+          pointer.y += (pointer.ty - pointer.y) * 0.08;
+          uniforms.uPointer.value.set(pointer.x * 0.5, pointer.y * 0.5);
+
+          // auto-rotate when idle
+          if (!pointer.dragging) {
+            rot.ty += dt * 0.18;
+          }
+          rot.x += (rot.tx - rot.x) * 0.08;
+          rot.y += (rot.ty - rot.y) * 0.12;
+
+          mesh.rotation.x = rot.x + pointer.y * 0.08;
+          mesh.rotation.y = rot.y + pointer.x * 0.12;
+
+          if (visible) renderer.render(scene, camera);
+          requestAnimationFrame(tick);
+        }
+        tick();
+      })();
+
+      // =============================================================
+      // Inverted Hull Outline Demo
+      // =============================================================
+      (function hullDemo() {
+        const container = document.getElementById("hull-demo");
+        const stage = document.getElementById("hull-stage");
+        const canvas = document.getElementById("hull-canvas");
+        if (!container || !stage || !canvas) return;
+
+        const renderer = new THREE.WebGLRenderer({
+          canvas,
+          antialias: true,
+          alpha: true,
+        });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setClearColor(0x000000, 0);
+
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(35, 16 / 9, 0.1, 100);
+        camera.position.set(0, 0, 5);
+
+        const geometry = new THREE.TorusKnotGeometry(0.9, 0.3, 180, 32);
+
+        // Inner shaded mesh — simple painterly-esque
+        const innerMat = new THREE.ShaderMaterial({
+          uniforms: {
+            uLight: { value: new THREE.Vector3(0.5, 0.7, 0.5).normalize() },
+            uPaper: { value: new THREE.Color("#ece4d3") },
+            uSienna: { value: new THREE.Color("#c96a3f") },
+            uOchre: { value: new THREE.Color("#d9a566") },
+            uCanvas: { value: new THREE.Color("#12110f") },
+          },
+          vertexShader: `
+            varying vec3 vN; varying vec3 vV; varying vec3 vP;
+            void main(){
+              vec4 wp = modelMatrix*vec4(position,1.0);
+              vN = normalize(mat3(modelMatrix)*normal);
+              vP = wp.xyz;
+              vV = normalize(cameraPosition - wp.xyz);
+              gl_Position = projectionMatrix*viewMatrix*wp;
+            }
+          `,
+          fragmentShader: `
+            precision highp float;
+            varying vec3 vN; varying vec3 vV; varying vec3 vP;
+            uniform vec3 uLight, uPaper, uSienna, uOchre, uCanvas;
+            float hash(vec3 p){ return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453); }
+            float n(vec3 p){ vec3 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f);
+              float a=hash(i),b=hash(i+vec3(1,0,0)),c=hash(i+vec3(0,1,0)),d=hash(i+vec3(1,1,0));
+              float e=hash(i+vec3(0,0,1)),g=hash(i+vec3(1,0,1)),h=hash(i+vec3(0,1,1)),k=hash(i+vec3(1,1,1));
+              return mix(mix(mix(a,b,f.x),mix(c,d,f.x),f.y),mix(mix(e,g,f.x),mix(h,k,f.x),f.y),f.z);
+            }
+            void main(){
+              float nl = clamp(dot(vN,normalize(uLight))*0.5+0.5,0.0,1.0);
+              float paint = n(vP*4.0);
+              float t = clamp(nl*0.85 + paint*0.2, 0.0, 1.0);
+              float bands = 4.0;
+              float q = floor(t*bands)/bands;
+              vec3 c;
+              if(q<0.25) c = mix(uCanvas, uSienna, q/0.25);
+              else if(q<0.5) c = mix(uSienna, uOchre, (q-0.25)/0.25);
+              else if(q<0.75) c = mix(uOchre, uPaper, (q-0.5)/0.25);
+              else c = uPaper;
+              float fres = 1.0 - max(dot(vN,vV),0.0);
+              c = mix(c, uOchre, pow(fres,3.0)*0.5);
+              gl_FragColor = vec4(c,1.0);
+            }
+          `,
+        });
+
+        const inner = new THREE.Mesh(geometry, innerMat);
+        scene.add(inner);
+
+        // Outline hull — inverted-culled, black, with breakup
+        const hullUniforms = {
+          uThickness: { value: 0.03 },
+          uBreakup: { value: 1.0 },
+          uTime: { value: 0 },
+        };
+
+        const hullMat = new THREE.ShaderMaterial({
+          side: THREE.BackSide,
+          transparent: true,
+          uniforms: hullUniforms,
+          vertexShader: `
+            varying vec3 vP;
+            varying vec3 vN;
+            uniform float uThickness;
+            void main(){
+              vec3 p = position + normal * uThickness;
+              vec4 wp = modelMatrix*vec4(p,1.0);
+              vN = normalize(mat3(modelMatrix)*normal);
+              vP = wp.xyz;
+              gl_Position = projectionMatrix*viewMatrix*wp;
+            }
+          `,
+          fragmentShader: `
+            precision highp float;
+            varying vec3 vP; varying vec3 vN;
+            uniform float uBreakup; uniform float uTime;
+            float hash(vec3 p){ return fract(sin(dot(p,vec3(127.1,311.7,74.7)))*43758.5453); }
+            float n(vec3 p){ vec3 i=floor(p),f=fract(p); f=f*f*(3.0-2.0*f);
+              float a=hash(i),b=hash(i+vec3(1,0,0)),c=hash(i+vec3(0,1,0)),d=hash(i+vec3(1,1,0));
+              float e=hash(i+vec3(0,0,1)),g=hash(i+vec3(1,0,1)),h=hash(i+vec3(0,1,1)),k=hash(i+vec3(1,1,1));
+              return mix(mix(mix(a,b,f.x),mix(c,d,f.x),f.y),mix(mix(e,g,f.x),mix(h,k,f.x),f.y),f.z);
+            }
+            float fbm(vec3 p){ float v=0.0,a=0.5; for(int i=0;i<4;i++){ v+=a*n(p); p*=2.03; a*=0.5;} return v; }
+            void main(){
+              float stroke = fbm(vP*8.0);
+              float alpha = smoothstep(0.25, 0.7, stroke);
+              // blend between solid & broken
+              alpha = mix(1.0, alpha, uBreakup);
+              if (alpha < 0.05) discard;
+              gl_FragColor = vec4(0.06,0.055,0.05, alpha);
+            }
+          `,
+        });
+        const hull = new THREE.Mesh(geometry, hullMat);
+        scene.add(hull);
+
+        // Controls
+        const state = { outline: true, breakup: true, thick: false };
+        const btns = container.querySelectorAll("[data-hull]");
+        btns.forEach((b) => {
+          b.addEventListener("click", () => {
+            const k = b.dataset.hull;
+            state[k] = !state[k];
+            b.setAttribute("aria-pressed", state[k] ? "true" : "false");
+            hull.visible = state.outline;
+            hullUniforms.uBreakup.value = state.breakup ? 1.0 : 0.0;
+            hullUniforms.uThickness.value = state.thick ? 0.06 : 0.03;
+          });
+        });
+
+        // Sizing
+        function resize() {
+          const rect = stage.getBoundingClientRect();
+          const w = Math.max(1, rect.width);
+          const h = Math.max(1, rect.height);
+          renderer.setSize(w, h, false);
+          camera.aspect = w / h;
+          camera.updateProjectionMatrix();
+        }
+        resize();
+        new ResizeObserver(resize).observe(stage);
+
+        // Pointer rotate
+        const rot = { tx: 0, ty: 0, x: 0, y: 0 };
+        let dragging = false, lx = 0, ly = 0;
+        stage.addEventListener("pointerdown", (e) => {
+          dragging = true; lx = e.clientX; ly = e.clientY;
+          stage.setPointerCapture(e.pointerId);
+        });
+        stage.addEventListener("pointerup", (e) => {
+          dragging = false;
+          try { stage.releasePointerCapture(e.pointerId); } catch(_) {}
+        });
+        stage.addEventListener("pointermove", (e) => {
+          if (!dragging) return;
+          rot.ty += (e.clientX - lx) * 0.006;
+          rot.tx += (e.clientY - ly) * 0.006;
+          lx = e.clientX; ly = e.clientY;
+        });
+
+        // Visibility
+        let visible = true;
+        new IntersectionObserver((entries) => {
+          entries.forEach((e) => (visible = e.isIntersecting));
+        }, { threshold: 0 }).observe(container);
+
+        const clock = new THREE.Clock();
+        function tick() {
+          const dt = clock.getDelta();
+          hullUniforms.uTime.value += dt;
+          if (!dragging) rot.ty += dt * 0.25;
+          rot.x += (rot.tx - rot.x) * 0.1;
+          rot.y += (rot.ty - rot.y) * 0.1;
+          inner.rotation.x = rot.x;
+          inner.rotation.y = rot.y;
+          hull.rotation.x = rot.x;
+          hull.rotation.y = rot.y;
+          if (visible) renderer.render(scene, camera);
+          requestAnimationFrame(tick);
+        }
+        tick();
       })();
     </script>
   </body>
